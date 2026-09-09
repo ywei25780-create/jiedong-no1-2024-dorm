@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build && node scripts/finalize-pages.mjs",
     "preview": "vite preview",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test:loader": "node --experimental-strip-types --test tests/model-download.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

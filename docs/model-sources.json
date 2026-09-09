@@ -1,0 +1,16 @@
+{
+  "modelId": "dorm",
+  "version": "2026-scan-v1",
+  "sha256": "2ebfd3f314b9e95ab78cdf98bfbc2a58025af8bdf2f73073ba4ed37444852f57",
+  "expectedBytes": 9397120,
+  "sources": {
+    "domestic": [],
+    "backup": [],
+    "githubPages": "assets/repaired.glb"
+  },
+  "timeouts": {
+    "firstByteMs": 8000,
+    "idleMs": 12000,
+    "totalMs": 60000
+  }
+}

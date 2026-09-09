@@ -1,4 +1,6 @@
 import * as T from 'three';
+import defaultModelConfig from '../public/model-sources.json';
+import {loadModelBlob,readModelConfig,type ModelProgress} from './model-download';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 export const memories=[{id:'bed',title:'床边',position:[.15,-.1,-.85]},{id:'cabinet',title:'柜子旁',position:[2.35,.25,1.15]},{id:'window',title:'窗边',position:[-3.3,.05,.1]}];
@@ -23,8 +25,18 @@ export function createScene(host:HTMLElement,events:any){
  function valid(x:number,z:number){if(!nav)return false;const ix=Math.floor((x-nav.x0)/nav.resolution),iz=Math.floor((z-nav.z0)/nav.resolution);return ix>=0&&iz>=0&&ix<nav.width&&iz<nav.height&&nav.cells[iz*nav.width+ix]===1}
  function move(dx:number,dz:number){if(!ready||paused||mode!=='walk')return;const steps=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.015));for(let i=0;i<steps;i++){if(valid(cam.position.x+dx/steps,cam.position.z))cam.position.x+=dx/steps;if(valid(cam.position.x,cam.position.z+dz/steps))cam.position.z+=dz/steps}cam.position.y=nav.floor+nav.eyeHeight;lastWalk.copy(cam.position)}
  function look(dx:number,dy:number){if(mode!=='walk'||paused)return;cam.rotation.y-=dx*.0028;cam.rotation.x=T.MathUtils.clamp(cam.rotation.x-dy*.0028,-1.35,1.35);cam.rotation.z=0}
- async function loadModel(){const seq=++modelSeq;events.status('正在载入真实宿舍…');events.loading(true);try{const g=await new GLTFLoader().loadAsync(import.meta.env.BASE_URL+'assets/repaired.glb');if(disposed||seq!==modelSeq){g.scene.traverse((o:any)=>{if(o.isMesh){o.geometry.dispose();o.material.map?.dispose();o.material.dispose()}});return}const old=model;model=g.scene;model.traverse((o:any)=>{if(o.isMesh){o.material.side=T.DoubleSide;if(o.material.map)o.material.map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy())}});scene.add(model);if(old){scene.remove(old);old.traverse((o:any)=>{if(o.isMesh){o.geometry.dispose();o.material.map?.dispose();o.material.dispose()}})}if(!ready)home();ready=!!nav;updateStyle();events.status('扫描漫游 · 揭东一中 2024 届');events.loading(false);events.ready?.(true)}catch(e){events.status('模型加载失败，请检查连接后重试');events.loading(false);events.error?.(String(e))}}
- fetch(import.meta.env.BASE_URL+'assets/navigation.json').then(r=>{if(!r.ok)throw Error('navigation');return r.json()}).then(n=>{if(disposed)return;nav=n;home();loadModel()}).catch(()=>{events.status('漫游数据读取失败，请刷新重试');events.loading(false)});
+ async function loadModel(){const seq=++modelSeq;events.status('正在载入真实宿舍…');events.loading(true);try{const baseURL=new URL(import.meta.env.BASE_URL,location.href).href;
+ const config=await readModelConfig(defaultModelConfig,baseURL,abort.signal);
+ let lastProgress:ModelProgress|undefined;
+ const result=await loadModelBlob(config,{baseURL,signal:abort.signal,onProgress:p=>{lastProgress=p;events.progress?.(p);events.status(p.message)}});
+ if(disposed)return;
+ events.status(result.fromCache?'正在从本地缓存还原宿舍…':'正在解析宿舍模型…');
+ events.progress?.({...lastProgress,phase:'parsing',message:result.fromCache?'正在从本地缓存还原宿舍…':'正在解析宿舍模型…'});
+ const objectURL=URL.createObjectURL(result.blob);
+ let g;
+ try{g=await new GLTFLoader().loadAsync(objectURL)}catch(error){throw new Error('模型下载及校验已成功，但解析或内嵌贴图解码失败')}finally{URL.revokeObjectURL(objectURL)};
+if(disposed||seq!==modelSeq){g.scene.traverse((o:any)=>{if(o.isMesh){o.geometry.dispose();o.material.map?.dispose();o.material.dispose()}});return}const old=model;model=g.scene;model.traverse((o:any)=>{if(o.isMesh){o.material.side=T.DoubleSide;if(o.material.map)o.material.map.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy())}});scene.add(model);if(old){scene.remove(old);old.traverse((o:any)=>{if(o.isMesh){o.geometry.dispose();o.material.map?.dispose();o.material.dispose()}})}if(!ready)home();ready=!!nav;updateStyle();events.status('扫描漫游 · 揭东一中 2024 届');events.progress?.({...lastProgress,phase:'ready'});events.loading(false);events.ready?.(true)}catch(e){if(disposed||abort.signal.aborted)return;events.status(e instanceof Error?e.message:'模型加载失败，请重试');events.loading(false);events.error?.(String(e))}}
+ fetch(import.meta.env.BASE_URL+'assets/navigation.json',{signal:abort.signal}).then(r=>{if(!r.ok)throw Error('navigation');return r.json()}).then(n=>{if(disposed)return;nav=n;home();loadModel()}).catch(()=>{if(disposed)return;events.status('漫游数据读取失败，请刷新重试');events.loading(false)});
  home();
  listen(canvas,'pointerdown',(e:PointerEvent)=>{if(paused||!ready)return;canvas.focus({preventScroll:true});drag={id:e.pointerId,x:e.clientX,y:e.clientY};moved=0;canvas.setPointerCapture(e.pointerId)});
  listen(canvas,'pointermove',(e:PointerEvent)=>{if(e.pointerType==='mouse'&&e.buttons===0&&document.pointerLockElement!==canvas){drag=null;return}if(document.pointerLockElement===canvas){look(e.movementX,e.movementY);return}if(drag?.id===e.pointerId){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;look(dx,dy);moved+=Math.abs(dx)+Math.abs(dy);drag.x=e.clientX;drag.y=e.clientY}});
