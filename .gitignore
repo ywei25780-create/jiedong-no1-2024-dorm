@@ -1,0 +1,7 @@
+node_modules/
+.vite/
+.env*
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
