@@ -11,6 +11,6 @@
   "timeouts": {
     "firstByteMs": 8000,
     "idleMs": 12000,
-    "totalMs": 60000
+    "totalMs": 180000
   }
 }
