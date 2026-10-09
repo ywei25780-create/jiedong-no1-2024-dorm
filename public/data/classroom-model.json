@@ -9,8 +9,8 @@
     "githubPages": "models/classroom.glb"
   },
   "timeouts": {
-    "firstByteMs": 8000,
-    "idleMs": 12000,
-    "totalMs": 180000
+    "firstByteMs": 60000,
+    "idleMs": 90000,
+    "totalMs": 600000
   }
 }

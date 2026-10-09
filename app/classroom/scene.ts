@@ -4,8 +4,12 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {loadModelBlob,validateConfig,type ModelProgress} from '../model-download';
 import bundledModel from '../../public/data/classroom-model.json';
 import bundledScene from '../../public/data/classroom-scene.json';
+import bundledNavigation from '../../public/data/classroom-navigation.json';
 import {assetURL,canStand,worldToLocal,localToWorld,validateSettings,type Hotspot,type Navigation,type Point,type Settings} from './data';
 import {disposeObject} from './resources';
+import {loadClassroomBootstrap,type ClassroomSceneConfig} from './bootstrap';
+
+const bundledSceneConfig:ClassroomSceneConfig={...bundledScene,spawn:bundledScene.spawn as Point,transform:{...bundledScene.transform,position:bundledScene.transform.position as Point,rotationDegrees:bundledScene.transform.rotationDegrees as Point}};
 
 export type {Settings} from './data';
 export type Mark={id:string;x:number;y:number;distance:number};
@@ -65,13 +69,14 @@ export function createClassroomScene(host:HTMLElement,events:Events){
  }
  function resize(){renderer.setSize(host.clientWidth,host.clientHeight);camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix()}
  listen(window,'resize',resize);listen(canvas,'webglcontextlost',((event:Event)=>{event.preventDefault();release();events.error('图形上下文中断，请刷新页面')}) as EventListener);
- async function json(path:string){const response=await fetch(assetURL(path),{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(6000)]),cache:'no-store'});if(!response.ok)throw Error(`资源读取失败：${path}`);return response.json()}
  function placeholder(reason:string){if(disposed)return;const fallback=new T.Group();const grid=new T.GridHelper(8,16,'#bcb8a8','#687979');fallback.add(grid);model=fallback;root.add(fallback);bounds.setFromObject(root);settings.floorY=0;settings.spawn=[0,1.65,3];settings.yaw=0;nav={x0:-4,z0:-4,width:80,height:80,resolution:.1,cells:Array(6400).fill(1),floorY:0,radius:.16,spawn:settings.spawn};ready=true;home();events.status('占位场景：真实扫描未载入');events.error(reason);events.ready(true)}
  async function load(){try{
-   const config=await json('data/classroom-scene.json').catch(()=>bundledScene);const modelConfig=await json('data/classroom-model.json').catch(()=>bundledModel);
+   const baseURL=new URL(import.meta.env.BASE_URL,location.href).href;
+   const {scene:config,model:modelConfig,navigation}=await loadClassroomBootstrap({bundledScene:bundledSceneConfig,bundledModel,bundledNavigation:bundledNavigation as Navigation,resolveURL:path=>assetURL(path,baseURL),signal:controller.signal,onStage:events.status});
+   if(disposed)return;
    settings={floorY:config.floorY,eyeHeight:config.eyeHeight,speed:config.speed,sprintMultiplier:config.sprintMultiplier,radius:config.radius,spawn:config.spawn,yaw:config.yaw};
-   nav=await json(config.navigation);const t=config.transform;root.position.fromArray(t.position);root.rotation.set(...(t.rotationDegrees.map((v:number)=>T.MathUtils.degToRad(v)) as Point));root.scale.setScalar(t.scale);root.updateMatrixWorld(true);
-   const result=await loadModelBlob(validateConfig(modelConfig),{baseURL:new URL(import.meta.env.BASE_URL,location.href).href,signal:controller.signal,onProgress:p=>{events.progress(p);events.status(p.message)}});
+   nav=navigation;const t=config.transform;root.position.fromArray(t.position);root.rotation.set(...(t.rotationDegrees.map((v:number)=>T.MathUtils.degToRad(v)) as Point));root.scale.setScalar(t.scale);root.updateMatrixWorld(true);
+   const result=await loadModelBlob(validateConfig(modelConfig),{baseURL,signal:controller.signal,onProgress:p=>{events.progress(p);events.status(p.message)}});
    if(disposed)return;events.status('正在解析真实教室与贴图…');const url=URL.createObjectURL(result.blob);try{const gltf=await new GLTFLoader().loadAsync(url);if(disposed){disposeObject(gltf.scene);return}model=gltf.scene;root.add(model)}finally{URL.revokeObjectURL(url)}
    bounds.setFromObject(root);const size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3());floor.scale.set(size.x,size.z,1);floor.position.set(center.x,settings.floorY-.035,center.z);floor.visible=true;cut.constant=settings.floorY+2.25;
    ready=true;home();events.status('真实高二教室 · 扫描纹理');events.ready(false);

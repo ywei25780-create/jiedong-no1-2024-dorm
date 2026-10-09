@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {loadModelBlob,readModelConfig,cacheKey,getSources,validateConfig,ModelDownloadError,type ModelConfig,type ModelProgress} from '../app/model-download.ts';
 
 const baseURL='https://example.test/jiedong-no1-2024-dorm/';
@@ -122,3 +123,23 @@ test('malformed config JSON reports the configuration error instead of ignoring 
  const {config}=await fixture();const original=globalThis.fetch;
  try{globalThis.fetch=fetchFn(()=>new Response('{invalid json'));await assert.rejects(readModelConfig(config,baseURL),/有效的 JSON/)}finally{globalThis.fetch=original}
 });
+
+for (const path of ['../public/model-sources.json','../public/data/classroom-model.json']) {
+ test(`release ${path} tolerates slow first data and a temporary transfer pause`,async()=>{
+  const {config,bytes}=await fixture();
+  const release=JSON.parse(readFileSync(new URL(path,import.meta.url),'utf8')) as ModelConfig;
+  // Scale real release deadlines by 100 to reproduce a 14-second connection
+  // and 18-second pause without making the test take half a minute.
+  config.timeouts={firstByteMs:release.timeouts.firstByteMs/100,idleMs:release.timeouts.idleMs/100,totalMs:release.timeouts.totalMs/100};
+  config.sources.domestic=[];config.sources.backup=[];
+  const result=await loadModelBlob(config,{baseURL,cacheStorage:null,fetcher:fetchFn((_,init)=>new Promise((resolve,reject)=>{
+   const connection=setTimeout(()=>resolve(new Response(new ReadableStream({start(c){
+    c.enqueue(bytes.slice(0,8));
+    const remainder=setTimeout(()=>{c.enqueue(bytes.slice(8));c.close()},180);
+    init!.signal!.addEventListener('abort',()=>{clearTimeout(remainder);c.error(new DOMException('aborted','AbortError'))},{once:true});
+   }}))),140);
+   init!.signal!.addEventListener('abort',()=>{clearTimeout(connection);reject(new DOMException('aborted','AbortError'))},{once:true});
+  }))});
+  assert.equal(result.blob.size,24);assert.equal(result.source,'GitHub Pages');
+ });
+}
