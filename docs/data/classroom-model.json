@@ -5,7 +5,7 @@
   "expectedBytes": 18003044,
   "sources": {
     "domestic": [],
-    "backup": [],
+    "backup": ["https://jiedong-models-protected-mirror.ipad-pro-wasd.workers.dev/classroom.glb"],
     "githubPages": "models/classroom.glb"
   },
   "timeouts": {

@@ -1,5 +1,7 @@
 node_modules/
 .vite/
+.wrangler/
+infra/r2-mirror/work/
 .env*
 *.log
 *.tsbuildinfo

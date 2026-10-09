@@ -1,0 +1,19 @@
+{
+  "name": "jiedong-models-protected-mirror",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-09",
+  "workers_dev": true,
+  "observability": {"enabled": false},
+  // Keep this bucket private. Do not enable r2.dev or a public bucket domain.
+  "r2_buckets": [
+    {"binding": "MODELS", "bucket_name": "jiedong-no1-2024-dorm-models"}
+  ],
+  "durable_objects": {
+    "bindings": [{"name": "DOWNLOAD_BUDGET", "class_name": "DownloadBudget"}]
+  },
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["DownloadBudget"]}],
+  "vars": {
+    "MONTHLY_BYTE_LIMIT": "10000000000",
+    "MONTHLY_REQUEST_LIMIT": "1000"
+  }
+}

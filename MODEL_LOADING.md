@@ -4,19 +4,9 @@
 
 ## 配置位置
 
-编辑 `public/model-sources.json`，然后执行 `npm run build`，将源文件及生成的 `docs/` 一起提交、推送。
+宿舍配置位于 `public/model-sources.json`，教室配置位于 `public/data/classroom-model.json`。编辑后执行 `npm run build`，将源文件及生成的 `docs/` 一起提交、推送。
 
-`domestic` 与 `backup` 当前均为空，因此当前只使用已存在的 GitHub Pages 模型地址。配置项的排列决定尝试顺序：本地缓存 → 国内镜像列表 → 备用镜像列表 → GitHub Pages。
-
-填写格式示例（下面的 example.com 仅作占位，不是可用镜像）：
-
-```json
-"sources": {
-  "domestic": ["https://domestic.example.com/dorm.glb"],
-  "backup": ["https://backup.example.com/dorm.glb"],
-  "githubPages": "assets/repaired.glb"
-}
-```
+配置项的排列决定尝试顺序：本地缓存 → `sources.domestic` 国内镜像列表 → `sources.backup` 备用镜像列表 → GitHub Pages。`domestic` 当前为 `[]`；`backup` 已接入 `https://jiedong-models-protected-mirror.ipad-pro-wasd.workers.dev` 的 `/dorm.glb` 与 `/classroom.glb`。
 
 镜像上的文件可以叫 `dorm.glb`，但内容必须与当前 `public/assets/repaired.glb` **逐字节相同**。GitHub Pages 上现有文件名和最终回退地址保持不变。相同地址会去重，空地址会跳过，本站回退源固定放在最后。不支持 URL 内嵌用户名和密码。
 
@@ -29,7 +19,7 @@
 - HTTP 非 200、跨域或网络错误、传输中断、大小不符、GLB 文件头不符、SHA-256 不符，均进入下一源。全部失败后显示各源的失败类别，并提供重新加载。
 - 进度直接累计 `fetch()` 响应流的字节数，显示已下载 MB / 总 MB。MB 使用十进制：1 MB = 1,000,000 字节。
 - 总大小使用发布配置中经过校验的 `expectedBytes`，不依赖镜像是否公开 Content-Length，也不会把 HTTP 压缩后的长度混作解压后的长度。切换源后进度归零，不把失败源的已收字节算入新文件。
-- 当前应为 `9397120` 字节，SHA-256 为 `2ebfd3f314b9e95ab78cdf98bfbc2a58025af8bdf2f73073ba4ed37444852f57`。
+- 宿舍应为 `9397120` 字节，SHA-256 为 `2ebfd3f314b9e95ab78cdf98bfbc2a58025af8bdf2f73073ba4ed37444852f57`；教室应为 `18003044` 字节，SHA-256 为 `514d52df2db67e73497ec0e36eb68413557353d2d767151c225c11d20f86d16c`。
 - 完整下载且校验通过后生成 Blob / Object URL，由现有 GLTFLoader 加载；加载完成或解析失败后释放 Object URL。
 - 下载成功后的 GLB 解析/内嵌图片解码错误会单独提示。由于各源应提供同样的校验通过文件，不为解析错误重复下载相同字节。
 
@@ -53,22 +43,25 @@
 https://ywei25780-create.github.io
 ```
 
-推荐响应头：
+受保护 R2 Worker 的响应头（宿舍示例）：
 
 ```http
 Access-Control-Allow-Origin: https://ywei25780-create.github.io
 Content-Type: model/gltf-binary
 Content-Length: 9397120
-Access-Control-Expose-Headers: Content-Length, ETag
+Access-Control-Expose-Headers: Content-Length
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+Vary: Origin
 ```
 
-若镜像专门提供公开模型，也可将 Allow-Origin 设为 `*`。本加载器使用 `credentials: omit`，不传 Cookie，不附加自定义请求头；不要用 `no-cors`，否则得到的 opaque 响应无法读取和校验。浏览器读取 Content-Length 通常无需 Expose-Headers，但显式配置有助于维护其他响应头。
+本加载器使用 `credentials: omit`，不传 Cookie，不附加自定义请求头；不要用 `no-cors`，否则得到的 opaque 响应无法读取和校验。受保护 R2 Worker 仅允许 Pages Origin 及 `http://localhost:4174`、`http://127.0.0.1:4174`；CORS 在 Worker 中实现，私有 bucket 不需要浏览器 CORS。
 
 如服务根据 Origin 动态返回允许域名，还应设置 `Vary: Origin`。使用 CDN 时，CDN 的实际响应（包括重定向后的最终响应）也必须满足 CORS，不能只在对象存储源站设置。公开下载地址不能返回登录页、防盗链提示页或过期签名错误页。
 
-镜像尚未填写，因此目前没有可验证的真实国内镜像。填入后必须用大陆直连手机实测，不能仅凭“国内镜像”的配置标签判断可达性。
+当前没有配置真实国内镜像。Cloudflare R2 作为备用源，尚无大陆速度保证；需用大陆直连手机实测，不能仅凭配置标签判断可达性。
 
-Cloudflare R2 的文件对应关系、CORS 配置及验证步骤见 [R2 镜像接入说明](R2_MIRROR.md)。R2 作为备用镜像，不标为国内 CDN；未获得实际公共地址时，不启用虚假镜像。
+R2 bucket `jiedong-no1-2024-dorm-models` 始终私有，禁止启用 `r2.dev` 或公开 bucket 域名。Workers Free 入口在每次 GET 前，统一原子预扣整个对象字节及一次读取；每个 UTC 自然月最多 `10,000,000,000` 字节 / `1,000` 次，取消或失败不退配额。超限 429、故障 503 或其他下载失败会进入现有 Pages 回退。浏览器模型缓存命中不请求 Worker、不计入配额。完整架构、权限与验证步骤见 [R2 镜像说明](R2_MIRROR.md)。
 
 ## 验证
 
