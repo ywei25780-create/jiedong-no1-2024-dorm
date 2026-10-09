@@ -1,19 +1,19 @@
-# 揭东一中 2024 届｜高二宿舍数字空间
+# 揭东一中 2024 届｜高二教室与宿舍数字空间
 
-**揭东一中 2024 届｜高二宿舍**<br>
-Jiedong No. 1 High School · Class of 2024 — Grade 11 Dormitory Digital Reconstruction
+**揭东一中 2024 届｜高二教室与宿舍**<br>
+Jiedong No. 1 High School · Class of 2024 — Grade 11 Classroom and Dormitory Digital Reconstruction
 
-[**在线进入 3D 宿舍 →**](https://ywei25780-create.github.io/jiedong-no1-2024-dorm/)
+[**在线进入高二教室 →**](https://ywei25780-create.github.io/jiedong-no1-2024-dorm/?space=classroom) · [**在线进入高二宿舍 →**](https://ywei25780-create.github.io/jiedong-no1-2024-dorm/)
 
 ## 项目简介
 
-这是一份关于高二宿舍的可漫游数字空间记录。项目保留真实扫描中的床位、过道、家具、床单花纹与生活痕迹，让人能在浏览器中重新进入、走动和观察这间宿舍。
+这是一份关于高二教室与宿舍的可漫游数字空间记录。项目保留真实扫描中的课桌、书本、床位、过道、家具与生活痕迹，让人能在浏览器中重新进入、走动和观察两间空间。教室与宿舍有双向入口，回忆保存在各自独立的数据中。
 
 **项目制作时间：2026 年。** 这是一项个人空间记录项目。
 
 ## iPad Pro 空间扫描来源
 
-空间来自使用 iPad Pro 对真实宿舍进行的扫描。发布版本使用已确认可运行的 GLB 漫游模型，贴图内嵌于模型中；原始 GLB / OBJ / USDZ 档案、原始照片、深度数据、聊天附件及扫描备份均不随仓库发布。
+两间空间来自使用 iPad Pro 进行的真实扫描。宿舍沿用已确认可运行的 GLB；教室由有纹理 OBJ 转成 GLB，完整保留扫描几何，另生成手机可用的纹理副本。贴图内嵌于模型中；原始 GLB / OBJ / USDZ 档案、原始照片、深度数据、聊天附件及扫描备份均不随仓库发布。
 
 ## AI-assisted reconstruction（AI 辅助重建）
 
@@ -58,7 +58,7 @@ npm run build
 npm run preview
 ```
 
-GitHub Pages 使用 `main` 分支的 `docs/` 目录。更新代码后重新构建，并将源代码和 `docs/` 一并提交、推送。
+GitHub Pages 使用 `.github/workflows/pages.yml` 从 `main` 自动运行测试、构建并部署 `docs/` 产物。仓库 Pages Source 使用 GitHub Actions。更新代码后将源代码提交并推送到 `main`。
 
 ## 发布范围与隐私
 
@@ -74,6 +74,6 @@ GitHub Pages 使用 `main` 分支的 `docs/` 目录。更新代码后重新构�
 
 项目新增真实教室扫描与空间记忆相册，和宿舍互相跳转。教室入口为 `?space=classroom`；使用真实 OBJ 转换的 GLB，保留完整几何与原扫描颜色，另生成手机纹理副本。支持 WASD / Shift / 手机摇杆、自由观察、俯视、可视化热点创建与移动、照片视频录音、日期排序和年份筛选、本机草稿、JSON 导入导出及开发参数。未提供的记忆标为「待补充回忆」。
 
-联合版的快速本地启动与验证结果见 [START_HERE.md](START_HERE.md)。教室当前交付为本地可运行版本；公开发布前需要确认新增教室扫描的发布范围。
+联合版的快速本地启动与验证结果见 [START_HERE.md](START_HERE.md)。公开版本仅包含必要运行模型、代码与空白热点配置，浏览器草稿不会上传。
 
-模型配置、使用方法、媒体添加、部署和限制见 [教室完整说明](CLASSROOM.md)。宿舍扫描与旧回忆存储键保持独立；进入宿舍不下载教室模型。工作流文件 `.github/workflows/pages.yml` 可用于 GitHub Actions 构建部署，使用前将 Pages Source 改为 GitHub Actions。
+模型配置、使用方法、媒体添加、部署和限制见 [教室完整说明](CLASSROOM.md)。宿舍扫描与旧回忆存储键保持独立；进入宿舍不下载教室模型。GitHub Actions 只部署静态构建产物。

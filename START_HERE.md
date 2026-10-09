@@ -31,4 +31,4 @@ WASD 移动，Shift 加速，鼠标拖动环顾。手机左下摇杆移动，右
 
 原扫描墙面和天花缺口、桌椅与书本局部变形仍存在；本版没有重建这些结构。碰撞是扫描推导的简化导航，狭窄桌椅间可能受阻。未在真实 iPhone/Android 上完成检查；内置预览浏览器不支持鼠标锁定，拖动环顾可用，全屏需在支持它的系统浏览器确认。镜像地址暂为空，首次在线下载仍受 GitHub Pages 网络影响。
 
-完整操作、配置和 Pages 自动部署说明见 [CLASSROOM.md](CLASSROOM.md)。本次交付是本地联合版，尚未替换现有线上宿舍。交付包不含原始扫描 ZIP、OBJ、USDZ、ARKit、扫描帧或测试媒体。
+完整操作、配置和 Pages 自动部署说明见 [CLASSROOM.md](CLASSROOM.md)。在线教室为 https://ywei25780-create.github.io/jiedong-no1-2024-dorm/?space=classroom，在线宿舍为同一网站根路径。交付包不含原始扫描 ZIP、OBJ、USDZ、ARKit、扫描帧或测试媒体。

@@ -60,7 +60,7 @@ python scripts/convert-classroom.py scan.obj texture.jpg classroom.glb --texture
 
 ## GitHub Pages
 
-已有网站可继续从 main / docs 部署。已提供 `.github/workflows/pages.yml` 自动测试、构建和上传部署产物；要启用它，在仓库 Settings → Pages → Source 选择 GitHub Actions，再推送 main。该工作流只上传构建后的 docs，不上传扫描工作目录。采用 [GitHub 官方 Pages 工作流](https://github.com/actions/starter-workflows/blob/main/pages/static.yml) 的部署动作。
+联合版使用 `.github/workflows/pages.yml` 自动测试、构建和上传部署产物，仓库 Pages Source 为 GitHub Actions。推送 main 即可部署；其他仓库启用时，在 Settings → Pages → Source 选择 GitHub Actions。该工作流只上传构建后的 docs，不上传扫描工作目录。采用 [GitHub 官方 Pages 工作流](https://github.com/actions/starter-workflows/blob/main/pages/static.yml) 的部署动作，Pages Source 可通过 [GitHub Pages API](https://docs.github.com/en/rest/pages/pages#update-information-about-a-github-pages-site) 配置。
 
 Vite base 默认 `/jiedong-no1-2024-dorm/`。换仓库名需同步修改 vite.config.ts 的 base。不要用 file:// 打开 HTML。当前运行模型小于 GitHub 单文件 100 MB 限制，未使用 Git LFS；原扫描 ZIP、OBJ、USDZ、ARKit、扫描帧和本地草稿不应提交。
 
