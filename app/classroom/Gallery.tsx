@@ -1,0 +1,22 @@
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {assetURL,selectMedia,type Hotspot} from './data';
+export default function Gallery({hotspot,onClose,onEdit,muted}:{hotspot:Hotspot;onClose:()=>void;onEdit:()=>void;muted:boolean}){
+ const [year,setYear]=useState('all'),[sort,setSort]=useState<'asc'|'desc'>('asc'),[index,setIndex]=useState(0),[zoom,setZoom]=useState(1),[failed,setFailed]=useState(false);
+ const container=useRef<HTMLDivElement>(null),start=useRef<number|null>(null);const media=useMemo(()=>selectMedia(hotspot.media,year,sort),[hotspot.media,year,sort]);const current=media[index];const years=[...new Set(hotspot.media.map(m=>m.date.slice(0,4)).filter(Boolean))].sort();
+ function advance(delta:number){setIndex(i=>(i+delta+Math.max(media.length,1))%Math.max(media.length,1));setZoom(1)}
+ useEffect(()=>{setIndex(0);setZoom(1)},[year,sort,hotspot.id]);useEffect(()=>setFailed(false),[current?.id]);
+ useEffect(()=>{function key(e:KeyboardEvent){if((e.target as HTMLElement).closest('input,select'))return;if(e.key==='Escape')onClose();if(e.key==='ArrowLeft')advance(-1);if(e.key==='ArrowRight')advance(1)}window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key)},[media.length,onClose]);
+ useEffect(()=>{const el=container.current;function stop(){el?.querySelectorAll('video,audio').forEach(m=>(m as HTMLMediaElement).pause())}document.addEventListener('visibilitychange',stop);return()=>{stop();document.removeEventListener('visibilitychange',stop)}},[current?.id]);
+ async function full(){try{if(document.fullscreenElement===container.current)await document.exitFullscreen();else await container.current?.requestFullscreen()}catch{setFailed(true)}}
+ return <div className="cl-gallery" ref={container} role="dialog" aria-modal="true" aria-label="记忆相册">
+  <div className="cl-gallery-head"><div><p className="cl-eyebrow">时间胶囊 · {hotspot.date||'时间待补充'}</p><h2>{hotspot.title}</h2></div><button className="cl-close" aria-label="关闭相册" onClick={onClose}>×</button></div>
+  <div className="cl-gallery-tools"><label>年份<select aria-label="相册年份筛选" value={year} onChange={e=>setYear(e.target.value)}><option value="all">全部时间</option>{years.map(y=><option key={y}>{y}</option>)}<option value="undated">未填日期</option></select></label><label>顺序<select aria-label="相册日期排序" value={sort} onChange={e=>setSort(e.target.value as 'asc'|'desc')}><option value="asc">从早到晚</option><option value="desc">从晚到早</option></select></label><button onClick={full}>全屏查看</button><button onClick={onEdit}>编辑这处记忆</button></div>
+  <div className="cl-media-stage" onPointerDown={e=>start.current=e.clientX} onPointerUp={e=>{if(start.current!==null&&Math.abs(e.clientX-start.current)>60)advance(e.clientX<start.current?1:-1);start.current=null}}>
+   {current?current.type==='image'?<div className="cl-image-scroll"><img src={assetURL(current.src)} alt={current.caption||hotspot.title} loading="lazy" style={{transform:`scale(${zoom})`}} onError={()=>setFailed(true)}/></div>:current.type==='video'?<video key={current.id} src={assetURL(current.src)} controls playsInline muted={muted} preload="metadata" onError={()=>setFailed(true)}/>:<div className="cl-audio"><span>♪</span><p>{current.caption||'一段留下的声音'}</p><audio key={current.id} src={assetURL(current.src)} controls muted={muted} preload="metadata" onError={()=>setFailed(true)}/></div>:<div className="cl-empty-memory"><span>◌</span><h3>{hotspot.media.length?'这一年还没有媒体':'待补充回忆'}</h3><p>{hotspot.description||'位置已经留下。照片、录音和故事，可以慢慢补上。'}</p></div>}
+   {failed&&<p className="cl-media-error" role="alert">媒体无法显示，请确认资源路径及浏览器支持的文件格式。全屏也可能受浏览器限制。</p>}
+  </div>
+  <div className="cl-gallery-bottom"><button aria-label="上一条记忆" disabled={media.length<2} onClick={()=>advance(-1)}>←</button><div><b>{current?.caption||hotspot.title}</b><p>{current?.date||'时间待补充'} · {media.length?`${index+1} / ${media.length}`:'待补充回忆'}</p></div><button aria-label="下一条记忆" disabled={media.length<2} onClick={()=>advance(1)}>→</button></div>
+  {current?.type==='image'&&<div className="cl-zoom"><button aria-label="缩小照片" onClick={()=>setZoom(z=>Math.max(.5,z-.25))}>−</button><span>{Math.round(zoom*100)}%</span><button aria-label="放大照片" onClick={()=>setZoom(z=>Math.min(3,z+.25))}>＋</button><button onClick={()=>setZoom(1)}>适合画面</button></div>}
+  <p className="cl-gallery-description">{hotspot.description}</p><div className="cl-tags">{hotspot.tags.map(tag=><span key={tag}>{tag}</span>)}</div>
+ </div>;
+}

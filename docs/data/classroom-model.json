@@ -1,0 +1,16 @@
+{
+  "modelId": "classroom",
+  "version": "2026-classroom-v1",
+  "sha256": "514d52df2db67e73497ec0e36eb68413557353d2d767151c225c11d20f86d16c",
+  "expectedBytes": 18003044,
+  "sources": {
+    "domestic": [],
+    "backup": [],
+    "githubPages": "models/classroom.glb"
+  },
+  "timeouts": {
+    "firstByteMs": 8000,
+    "idleMs": 12000,
+    "totalMs": 180000
+  }
+}

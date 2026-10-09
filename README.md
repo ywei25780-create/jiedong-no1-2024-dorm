@@ -69,3 +69,11 @@ GitHub Pages 使用 `main` 分支的 `docs/` 目录。更新代码后重新构�
 ## 模型加载与镜像配置
 
 支持本地模型缓存、国内镜像 → 备用镜像 → GitHub Pages 自动切换，以及真实下载进度。镜像地址当前留空，等待填写；默认仍加载原有 Pages GLB。配置见 `public/model-sources.json`，填写方式、CORS 要求和版本更新见 [模型加载说明](MODEL_LOADING.md)。
+
+## 高二教室 · Classroom Time Machine
+
+项目新增真实教室扫描与空间记忆相册，和宿舍互相跳转。教室入口为 `?space=classroom`；使用真实 OBJ 转换的 GLB，保留完整几何与原扫描颜色，另生成手机纹理副本。支持 WASD / Shift / 手机摇杆、自由观察、俯视、可视化热点创建与移动、照片视频录音、日期排序和年份筛选、本机草稿、JSON 导入导出及开发参数。未提供的记忆标为「待补充回忆」。
+
+联合版的快速本地启动与验证结果见 [START_HERE.md](START_HERE.md)。教室当前交付为本地可运行版本；公开发布前需要确认新增教室扫描的发布范围。
+
+模型配置、使用方法、媒体添加、部署和限制见 [教室完整说明](CLASSROOM.md)。宿舍扫描与旧回忆存储键保持独立；进入宿舍不下载教室模型。工作流文件 `.github/workflows/pages.yml` 可用于 GitHub Actions 构建部署，使用前将 Pages Source 改为 GitHub Actions。

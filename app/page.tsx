@@ -20,6 +20,7 @@ export default function Page(){
  return <main data-model-source={download?.source} data-model-cache={download?.fromCache} data-model-phase={download?.phase} data-ready={ready} data-mode={mode} data-night={night} data-yaw={view?.yaw} data-position={view?`${view.x.toFixed(3)},${view.y.toFixed(3)},${view.z.toFixed(3)}`:''}>
   <div ref={host} className="viewport"/>
   <header><div className="brand"><small><i/>揭东一中 2024 届 · 2026 制作</small><h1>揭东一中 2024 届<span>｜高二宿舍数字空间</span></h1></div><nav aria-label="场景控制">
+   <a className="space-link" href={`${import.meta.env.BASE_URL}?space=classroom`}>高二教室 ↗</a>
    <Button disabled={!ready} onClick={()=>api.current?.home()} title="回到入口"><Home/> <span>回到入口</span></Button>
    <Button disabled={!ready} aria-pressed={mode==='overview'} onClick={()=>mode==='overview'?api.current?.resume():api.current?.overview()}>{mode==='overview'?<ArrowLeft/>:<Scan/>}<span>{mode==='overview'?'继续漫游':'整体俯视'}</span></Button>
    <Button disabled={!ready} aria-pressed={night} onClick={()=>{setNight(!night);api.current?.setNight(!night)}}>{night?<Moon/>:<Sun/>}<span>{night?'夜晚':'白天'}</span></Button>
