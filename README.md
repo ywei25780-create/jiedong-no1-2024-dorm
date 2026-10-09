@@ -1,13 +1,13 @@
-# 揭东一中 2024 届｜高三宿舍数字空间
+# 揭东一中 2024 届｜高二宿舍数字空间
 
-**揭东一中 2024 届｜高三宿舍**  
-Jiedong No. 1 High School · Class of 2024 — Senior Dormitory Digital Reconstruction
+**揭东一中 2024 届｜高二宿舍**<br>
+Jiedong No. 1 High School · Class of 2024 — Grade 11 Dormitory Digital Reconstruction
 
 [**在线进入 3D 宿舍 →**](https://ywei25780-create.github.io/jiedong-no1-2024-dorm/)
 
 ## 项目简介
 
-这是一份关于高三宿舍的可漫游数字空间记录。项目保留真实扫描中的床位、过道、家具、床单花纹与生活痕迹，让人能在浏览器中重新进入、走动和观察这间宿舍。
+这是一份关于高二宿舍的可漫游数字空间记录。项目保留真实扫描中的床位、过道、家具、床单花纹与生活痕迹，让人能在浏览器中重新进入、走动和观察这间宿舍。
 
 **项目制作时间：2026 年。** 这是一项个人空间记录项目。
 
