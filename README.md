@@ -68,7 +68,7 @@ GitHub Pages 使用 `.github/workflows/pages.yml` 从 `main` 自动运行测试�
 
 ## 模型加载与镜像配置
 
-支持本地模型缓存、国内镜像 → 备用镜像 → GitHub Pages 自动切换，以及真实下载进度。宿舍配置为 `public/model-sources.json`，教室配置为 `public/data/classroom-model.json`，使用部署验证后的真实 Worker 地址作为备用源。国内源当前为 `[]`，暂无大陆速度保证；填写方式、CORS 要求和版本更新见 [模型加载说明](MODEL_LOADING.md)。
+支持本地模型缓存、多个下载源同时试读 0.01 MB、自动选择有数据的源，以及真实下载进度。镜像一直 0 MB 时，GitHub Pages 可直接继续下载，无需等待该镜像超时。宿舍配置为 `public/model-sources.json`，教室配置为 `public/data/classroom-model.json`，使用部署验证后的真实 Worker 地址作为备用源。国内源当前为 `[]`，暂无大陆速度保证；填写方式、CORS 要求和版本更新见 [模型加载说明](MODEL_LOADING.md)。
 
 备用镜像采用 Workers Free 与私有 R2 bucket `jiedong-no1-2024-dorm-models`，仅提供两份现有 GLB。每个 UTC 自然月统一预扣最多 10 GB（`10,000,000,000` 字节）及 1,000 次读取，取消不退配额；超限或失败自动回退 GitHub Pages。浏览器缓存命中不计数，模型字节、版本及 hash 不变。禁止公开 bucket 或启用 `r2.dev`，部署权限与验证见 [R2 镜像说明](R2_MIRROR.md)。
 

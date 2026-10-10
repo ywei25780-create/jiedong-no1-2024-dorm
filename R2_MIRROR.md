@@ -51,7 +51,7 @@ OPTIONS 只检查允许的 Origin、GET 方法和请求头，不访问 R2，也�
 - `public/data/classroom-model.json` 的 `sources.backup`：真实 Worker URL 加 `/classroom.glb`。
 - `public/model-sources.json` 的 `sources.backup`：真实 Worker URL 加 `/dorm.glb`。
 
-没有真实 URL 时保持备用数组为空，不填占位地址。加载顺序仍为本地缓存 → `sources.domestic` → `sources.backup` → GitHub Pages。`sources.domestic` 当前为 `[]`；R2 放在备用源，不能视为中国大陆 CDN，尚无大陆速度保证，需用大陆直连设备实测。
+没有真实 URL 时保持备用数组为空，不填占位地址。先读本地缓存；未命中时同时试读 `sources.domestic`、`sources.backup` 及 GitHub Pages，先收到有效 GLB 文件头并达到 0.01 MB 的源继续原请求。其余候选停止主动读取并保留连接供失败回退，完整校验成功后取消。每次 R2 试读 GET 都预扣整个对象配额及一次读取，即使最终采用 Pages 也不会退款；复用候选连接避免重复 GET。`sources.domestic` 当前为 `[]`；R2 放在备用源，不能视为中国大陆 CDN，尚无大陆速度保证，需用大陆直连设备实测。
 
 相同字节的镜像不修改 `version`、`sha256` 或 `expectedBytes`，已有模型缓存继续命中。执行 `npm test`、`npm run check`、`npm run build` 并发布网站后配置生效。GitHub Pages 工作流只部署静态网站，Worker 单独部署。
 

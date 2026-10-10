@@ -102,57 +102,116 @@ function readableFailure(error: unknown) {
   return '数据传输失败';
 }
 
-async function downloadSource(url: string, config: ModelConfig, options: Options, update: (loaded: number, phase: ModelProgress['phase']) => void) {
+// Each source reads only a small prefix until selected. Keep its original stream
+// available as a fallback; never make a second (quota-consuming) GET to resume it.
+function probeSource(url: string, config: ModelConfig, options: Options) {
   const controller = new AbortController();
-  let reason: ModelDownloadError | undefined;
-  const expire = (code: string, message: string) => {reason = new ModelDownloadError(code, message); controller.abort();};
-  let idleTimer = setTimeout(() => expire('first-byte-timeout', '等待模型数据超时'), config.timeouts.firstByteMs);
-  const totalTimer = setTimeout(() => expire('total-timeout', '当前下载源超过总时限'), config.timeouts.totalMs);
-  const cancel = () => controller.abort();
-  options.signal?.addEventListener('abort', cancel, {once:true});
+  let reason: unknown;
+  let rejectStopped!: (error: unknown) => void;
+  const stopped = new Promise<never>((_, reject) => {rejectStopped = reject;});
+  // A synchronous fetcher failure or cancellation can precede the first race.
+  void stopped.catch(() => {});
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  try {
-    throwIfAborted(options.signal);
-    const response = await (options.fetcher ?? fetch)(url, {
-      signal: controller.signal, mode:'cors', credentials:'omit', cache:'no-store',
-    });
-    if (response.status !== 200) {
-      void response.body?.cancel().catch(() => {});
-      throw new ModelDownloadError('http', `HTTP ${response.status}`);
-    }
-    if (!response.body) throw new ModelDownloadError('stream', '浏览器未提供可读取的模型数据流');
-    // Total comes from the release manifest, not compressed wire Content-Length.
-    // It stays truthful for gzip/Brotli responses and missing CORS-exposed headers.
-    reader = response.body.getReader();
-    const chunks: ArrayBuffer[] = [];
-    let loaded = 0;
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      if (!value.byteLength) continue;
-      loaded += value.byteLength;
-      if (loaded > config.expectedBytes) throw new ModelDownloadError('size', '下载内容超过预期模型大小');
-      chunks.push(value.slice().buffer as ArrayBuffer);
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => expire('idle-timeout', '下载中断，长时间没有收到数据'), config.timeouts.idleMs);
-      update(loaded, 'downloading');
-    }
+  let closed = false;
+  const chunks: ArrayBuffer[] = [];
+  const received: number[] = [];
+  let loaded = 0, headerChecked = false;
+  const cleanup = () => {
     clearTimeout(idleTimer); clearTimeout(totalTimer);
-    throwIfAborted(options.signal);
-    const blob = new Blob(chunks, {type:'model/gltf-binary'});
-    update(loaded, 'verifying');
-    await verifyBlob(blob, config);
-    throwIfAborted(options.signal);
-    return blob;
-  } catch (error) {
-    throwIfAborted(options.signal);
-    throw reason ?? error;
-  } finally {
-    clearTimeout(idleTimer); clearTimeout(totalTimer);
+    if (closed) return;
+    closed = true;
     options.signal?.removeEventListener('abort', cancel);
     controller.abort();
-    if (reader) {void reader.cancel().catch(() => {}); reader.releaseLock();}
-  }
+    // A broken browser/network stack may never settle cancellation. Do not await
+    // it, and do not let cleanup errors hide the download failure.
+    if (reader) {
+      try {void reader.cancel().catch(() => {});} catch { /* Already closed. */ }
+      try {reader.releaseLock();} catch { /* Pending/broken reader. */ }
+    }
+  };
+  const stop = (error: unknown) => {
+    if (reason !== undefined || closed) return;
+    reason = error; rejectStopped(error); cleanup();
+  };
+  const expire = (code: string, message: string) => stop(new ModelDownloadError(code, message));
+  let idleTimer = setTimeout(() => expire('first-byte-timeout', '等待模型数据超时'), config.timeouts.firstByteMs);
+  const totalTimer = setTimeout(() => expire('total-timeout', '当前下载源超过总时限'), config.timeouts.totalMs);
+  const cancel = () => stop(new DOMException('模型加载已取消', 'AbortError'));
+  options.signal?.addEventListener('abort', cancel, {once:true});
+  const check = () => {
+    throwIfAborted(options.signal);
+    if (reason !== undefined) throw reason;
+  };
+  const read = async () => {
+    check();
+    // Reject independently of AbortController: some embedded browsers ignore
+    // abort while connecting or waiting for their next response body chunk.
+    const {done, value} = await Promise.race([reader!.read(), stopped]);
+    check();
+    if (done) {
+      if (loaded !== config.expectedBytes) throw new ModelDownloadError('size', '模型下载不完整或文件版本不符');
+      return true;
+    }
+    if (!value.byteLength) return false;
+    loaded += value.byteLength;
+    if (loaded > config.expectedBytes) throw new ModelDownloadError('size', '下载内容超过预期模型大小');
+    chunks.push(value.slice().buffer as ArrayBuffer); received.push(loaded);
+    if (!headerChecked && loaded >= 12) {
+      const prefix = new Uint8Array(12); let offset = 0;
+      for (const chunk of chunks) {
+        const part = new Uint8Array(chunk).subarray(0, 12 - offset);
+        prefix.set(part, offset); offset += part.length; if (offset === 12) break;
+      }
+      const header = new DataView(prefix.buffer);
+      if (header.getUint32(0, true) !== 0x46546c67 || header.getUint32(4, true) !== 2 || header.getUint32(8, true) !== config.expectedBytes) {
+        throw new ModelDownloadError('format', '下载内容不是当前版本的 GLB 2.0 文件');
+      }
+      headerChecked = true;
+    }
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => expire('idle-timeout', '下载中断，长时间没有收到数据'), config.timeouts.idleMs);
+    return false;
+  };
+  const ready = (async () => {
+    try {
+      check();
+      const request = (options.fetcher ?? fetch)(url, {
+        signal: controller.signal, mode:'cors', credentials:'omit', cache:'no-store',
+      }).then(response => {
+        // Also clean up a response arriving after the independent race ended.
+        if (closed || controller.signal.aborted || response.status !== 200) {
+          try {void response.body?.cancel().catch(() => {});} catch { /* Closed body. */ }
+          check();
+          throw new ModelDownloadError('http', `HTTP ${response.status}`);
+        }
+        return response;
+      });
+      const response = await Promise.race([request, stopped]); check();
+      if (!response.body) throw new ModelDownloadError('stream', '浏览器未提供可读取的模型数据流');
+      reader = response.body.getReader();
+      while (loaded < Math.min(10000, config.expectedBytes)) await read();
+      // A standby stream is deliberately paused, not an inactive download. Its
+      // overall connection deadline still bounds how long it can remain open.
+      clearTimeout(idleTimer);
+    } catch (error) {stop(error); check(); throw error;}
+  })();
+  return {ready, cancel, async finish(update: (loaded: number, phase: ModelProgress['phase']) => void) {
+    try {
+      await ready; check();
+      received.forEach(bytes => update(bytes, 'downloading'));
+      check();
+      idleTimer = setTimeout(() => expire('idle-timeout', '下载中断，长时间没有收到数据'), config.timeouts.idleMs);
+      while (true) {
+        const previous = loaded, done = await read();
+        if (loaded !== previous) update(loaded, 'downloading');
+        if (done) break;
+      }
+      clearTimeout(idleTimer); clearTimeout(totalTimer); check();
+      const blob = new Blob(chunks, {type:'model/gltf-binary'});
+      update(loaded, 'verifying');
+      await verifyBlob(blob, config); check(); return blob;
+    } catch (error) {stop(error); check(); throw error;} finally {cleanup();}
+  }};
 }
 
 export async function loadModelBlob(config: ModelConfig, options: Options) {
@@ -184,35 +243,52 @@ export async function loadModelBlob(config: ModelConfig, options: Options) {
     }
   } catch {throwIfAborted(options.signal); /* Storage denied or quota: continue without it. */}
   const failures: string[] = [];
-  for (let i = 0; i < sources.length; i++) {
-    throwIfAborted(options.signal);
-    const source = sources[i];
-    emit('connecting', `正在连接${source.label}（${i + 1}/${sources.length}）…`, 0, source.label, i+1);
-    let blob: Blob;
-    try {
-      blob = await downloadSource(source.url, config, options, (loaded, phase) => emit(phase,
-        phase === 'verifying' ? '下载完成，正在校验模型…' : `正在从${source.label}下载…`, loaded, source.label, i+1));
-    } catch (error) {
+  const transfers: ReturnType<typeof probeSource>[] = [];
+  type ProbeResult = {index: number; error?: unknown; ok: boolean};
+  const pending = new Map<number, Promise<ProbeResult>>();
+  emit('connecting', sources.length > 1 ? '正在同时试读下载源（0.01 MB）…' : '正在连接 GitHub Pages…');
+  try {
+    for (const [index, source] of sources.entries()) {
       throwIfAborted(options.signal);
-      const reason = readableFailure(error);
-      failures.push(`${source.label}：${reason}`);
-      if (i + 1 < sources.length) emit('switching', `${source.label}：${reason}，正在切换…`, 0, source.label, i+1);
-      continue;
+      const transfer = probeSource(source.url, config, options); transfers.push(transfer);
+      pending.set(index, transfer.ready.then(() => ({index, ok:true}), error => ({index, error, ok:false})));
     }
-    let cacheStored = false;
-    if (cache) {
+    while (pending.size) {
+      throwIfAborted(options.signal);
+      const candidate = await Promise.race(pending.values());
+      pending.delete(candidate.index);
+      const i = candidate.index, source = sources[i];
+      let blob: Blob;
       try {
-        await bounded(cache.put(key, new Response(blob, {headers:{'Content-Type':'model/gltf-binary','Content-Length':String(blob.size)}})));
-        cacheStored = true;
-        // Keep version/hash-separated entries. Never reuse an older key. We do not
-        // delete other versions here: an older open tab must not evict a newer one.
-      } catch { /* Quota/private-mode errors must not fail an otherwise valid scene. */ }
+        if (!candidate.ok) throw candidate.error;
+        blob = await transfers[i].finish((loaded, phase) => emit(phase,
+          phase === 'verifying' ? '下载完成，正在校验模型…' : `正在从${source.label}下载…`, loaded, source.label, i+1));
+      } catch (error) {
+        throwIfAborted(options.signal);
+        const reason = readableFailure(error);
+        failures.push(`${source.label}：${reason}`);
+        if (pending.size) emit('switching', `${source.label}：${reason}，正在选择可用源…`, 0, source.label, i+1);
+        continue;
+      }
+      // Cancel pending/no-data requests without waiting for their cancellation.
+      transfers.forEach(transfer => transfer.cancel());
+      let cacheStored = false;
+      if (cache) {
+        try {
+          await bounded(cache.put(key, new Response(blob, {headers:{'Content-Type':'model/gltf-binary','Content-Length':String(blob.size)}})));
+          cacheStored = true;
+          // Keep version/hash-separated entries. Never reuse an older key. We do not
+          // delete other versions here: an older open tab must not evict a newer one.
+        } catch { /* Quota/private-mode errors must not fail an otherwise valid scene. */ }
+      }
+      throwIfAborted(options.signal);
+      emit('downloaded', cacheStored ? '模型已下载并缓存' : '模型已下载（本次未能写入本地缓存）', blob.size, source.label, i+1);
+      return {blob,fromCache:false,source:source.label,cacheStored};
     }
-    throwIfAborted(options.signal);
-    emit('downloaded', cacheStored ? '模型已下载并缓存' : '模型已下载（本次未能写入本地缓存）', blob.size, source.label, i+1);
-    return {blob,fromCache:false,source:source.label,cacheStored};
+    throw new ModelDownloadError('all-sources-failed', `所有模型下载源均失败。${failures.join('；')}`);
+  } finally {
+    transfers.forEach(transfer => transfer.cancel());
   }
-  throw new ModelDownloadError('all-sources-failed', `所有模型下载源均失败。${failures.join('；')}`);
 }
 
 export async function readModelConfig(fallback: ModelConfig, baseURL: string, signal?: AbortSignal): Promise<ModelConfig> {

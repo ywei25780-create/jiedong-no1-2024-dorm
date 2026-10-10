@@ -6,15 +6,17 @@
 
 宿舍配置位于 `public/model-sources.json`，教室配置位于 `public/data/classroom-model.json`。编辑后执行 `npm run build`，将源文件及生成的 `docs/` 一起提交、推送。
 
-配置项的排列决定尝试顺序：本地缓存 → `sources.domestic` 国内镜像列表 → `sources.backup` 备用镜像列表 → GitHub Pages。`domestic` 当前为 `[]`；`backup` 已接入 `https://jiedong-models-protected-mirror.ipad-pro-wasd.workers.dev` 的 `/dorm.glb` 与 `/classroom.glb`。
+先读取本地缓存。缓存未命中时，同时试读 `sources.domestic` 国内镜像、`sources.backup` 备用镜像及 GitHub Pages；先收到有效 GLB 文件头且累计达到 10,000 字节（0.01 MB）的源继续下载。无需等待一直 0 MB 的镜像超时，Pages 也能直接胜出。小于 10,000 字节的模型以完整大小为试读阈值。`domestic` 当前为 `[]`；`backup` 已接入 `https://jiedong-models-protected-mirror.ipad-pro-wasd.workers.dev` 的 `/dorm.glb` 与 `/classroom.glb`。
 
-镜像上的文件可以叫 `dorm.glb`，但内容必须与当前 `public/assets/repaired.glb` **逐字节相同**。GitHub Pages 上现有文件名和最终回退地址保持不变。相同地址会去重，空地址会跳过，本站回退源固定放在最后。不支持 URL 内嵌用户名和密码。
+镜像上的文件可以叫 `dorm.glb`，但内容必须与当前 `public/assets/repaired.glb` **逐字节相同**。GitHub Pages 上现有文件名和回退地址保持不变。相同地址会去重，空地址会跳过；配置顺序用于启动试读及同一时刻就绪的候选排序。不支持 URL 内嵌用户名和密码。
 
 ## 超时、进度与校验
 
-- 等待首个非空数据块最多 60 秒，覆盖连接、响应头及首包阶段。
+- 同时试读各源，按真实收到的数据选择源，零数据镜像不阻挡已达标的 Pages。时间限制只作为无响应或传输卡死的保障，不是启动 Pages 的等待条件。
+- 等待首个非空数据块最多 60 秒，覆盖连接、响应头及首包阶段；即使底层浏览器忽略 abort，也会独立结束该源的等待。
 - 开始接收后，连续 90 秒没有收到新数据便切换。
-- 每个源的整个传输阶段最多 600 秒（10 分钟）。每个源仅尝试一次，没有无限重试。教室和宿舍使用同样的时限。
+- 每个源从 GET 开始最多 600 秒（10 分钟）。达标候选保留原连接并停止主动读取，暂停期间不计 idle；恢复时重新计 idle，总时限仍保留。浏览器或网络层可能继续缓冲数据，因此试读不保证只产生 10 KB 网络流量。每个源仅 GET 一次，继续下载无需重复请求。教室和宿舍使用同样的时限。
+- 当前源在完整大小或 SHA-256 校验中失败时，改用其他已试读候选，或等待其余试读结果。完整文件校验成功后，立即取消其他请求；不等待底层取消操作完成。
 - 页面离开或场景销毁时取消下载，不继续请求下一源。
 - HTTP 非 200、跨域或网络错误、传输中断、大小不符、GLB 文件头不符、SHA-256 不符，均进入下一源。全部失败后显示各源的失败类别，并提供重新加载。
 - 进度直接累计 `fetch()` 响应流的字节数，显示已下载 MB / 总 MB。MB 使用十进制：1 MB = 1,000,000 字节。
@@ -65,6 +67,6 @@ R2 bucket `jiedong-no1-2024-dorm-models` 始终私有，禁止启用 `r2.dev` �
 
 ## 验证
 
-`npm run test:loader` 覆盖优先级、HTTP/网络失败、首包/中途/总超时、真实字节进度、错误内容校验、缓存命中、版本/hash 失效、损坏缓存恢复、存储不可用和取消加载。浏览器还需检查跨域拒绝、跨域允许及实际 Cache Storage 命中。
+`npm run test:loader` 覆盖源去重、并行试读、零数据/不足 10 KB 的镜像、忽略 abort 的请求、赢家复用连接、失败候选回退、HTTP/网络失败、首包/中途/总超时、真实字节进度、错误内容校验、缓存命中、版本/hash 失效、损坏缓存恢复、存储不可用和取消加载。浏览器还需检查跨域拒绝、跨域允许及实际 Cache Storage 命中。
 
 配置与缓存遵循 [MDN CacheStorage](https://developer.mozilla.org/en-US/docs/Web/API/CacheStorage) 和 [CORS 响应头说明](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers)。

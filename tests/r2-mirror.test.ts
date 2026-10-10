@@ -127,7 +127,8 @@ for(const status of [429,503] as const){
   assert.deepEqual(calls,[mirrorURL,fallbackURL]);
   assert.equal(binding.reservations,1);assert.equal(binding.reads,0);
   assert.equal(result.source,'GitHub Pages');assert.equal(result.fromCache,false);assert.equal(result.blob.size,dormBytes);
-  assert(progress.some(value=>value.phase==='switching'&&value.message.includes(`HTTP ${status}`)));
+  // Pages can win the prefix race before the failed mirror response is selected.
+  assert(progress.some(value=>value.phase==='downloaded'&&value.source==='GitHub Pages'&&value.loaded===dormBytes));
  });
 }
 
