@@ -27,7 +27,8 @@ ZIP 校验通过：10,974 个文件，含 2 个 OBJ、1 个 MTL、1 个 USDZ、1
 
 - 电脑：WASD 行走，Shift 加速，按住鼠标拖动环顾；「鼠标环顾」开启锁定，Esc 释放。方向键可调整视线。
 - 手机：左下摇杆移动，右侧拖动环顾。自由观察可用双指操作。
-- 自由观察 / 俯视：OrbitControls 绕场景观察；俯视裁去高处扫描面。继续漫游恢复此前位置与朝向。
+- 自由观察：退出编辑模式后，双击真实扫描表面（手机在同一部位连续点两下），以命中位置为中心旋转、缩放；可再次双击更换中心。空白、拖动、多指缩放不会误选中心，热点按钮仍用于打开回忆。继续漫游恢复此前位置与朝向。
+- 俯视：保留完整扫描高度，不再按地面以上 2.25 m 裁切。按完整模型范围、视野角与屏幕比例自动取景，横竖屏切换时重新计算。原扫描中的天花残片、遮挡和缺口仍保留。
 - 热点：进入编辑模式，点击真实扫描表面创建。拖动用于环顾，不创建热点。「重新点选位置」移动现有热点，不新增副本。支持修改与删除。
 - 相册：支持多照片、视频、录音，照片缩放、左右切换、方向键与横向滑动、全屏；按年份筛选、日期排序。媒体声音默认关闭，开启后才有声音；不会加入未提供的背景音。
 - 场景参数：可改出生位置、行走高度、速度、碰撞半径，保存到当前浏览器或导出配置。出生点必须位于可走区域。
@@ -46,7 +47,7 @@ ZIP 校验通过：10,974 个文件，含 2 个 OBJ、1 个 MTL、1 个 USDZ、1
 
 ## 替换模型、配置镜像和变换
 
-真实运行模型为 `public/models/classroom.glb`。下载源、版本、大小与 hash 在 `public/data/classroom-model.json`。镜像留空，国内 → 备用 → 本站按顺序；单源总时限 180 秒，首包 8 秒，停滞 12 秒。下载为 Blob 后交给 GLTFLoader。模型缓存按 modelId/version/hash 分开，更新模型时同时更改 sha256、expectedBytes 和 version。CORS 规则见 [MODEL_LOADING.md](MODEL_LOADING.md)。
+真实运行模型为 `public/models/classroom.glb`。下载源、版本、大小与 hash 在 `public/data/classroom-model.json`。先读本地缓存；未命中时各源同时试读 0.01 MB，先达标的有效 GLB 源继续下载，无数据镜像不阻挡本站。单源总时限 600 秒、首包 60 秒、停滞 90 秒。下载为 Blob 后交给 GLTFLoader。模型缓存按 modelId/version/hash 分开，更新模型时同时更改 sha256、expectedBytes 和 version。当前镜像、CORS 与配额规则见 [MODEL_LOADING.md](MODEL_LOADING.md)。
 
 变换与行走配置在 `public/data/classroom-scene.json`；导航在 `public/data/classroom-navigation.json`。transform 的 rotationDegrees 按度数填写。配置中的 floorY/spawn 为场景坐标；平移或缩放模型时需要同步校准地面与出生位置，绕 X/Z 改正坐标轴后需要重新生成导航。热点仍绑定模型局部坐标。
 
