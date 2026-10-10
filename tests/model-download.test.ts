@@ -264,3 +264,51 @@ test('caller cancellation exits hung probes without starting retries after cance
   assert.deepEqual(calls,callsAtCancellation);assert(calls.length>0&&calls.length<=2);assert(signals.every(signal=>signal.aborted));
  }finally{clearTimeout(cancelTimer)}
 });
+
+test('a transient same-origin connection failure retries Pages without waiting for a zero-byte mirror',async()=>{
+ const {config,bytes}=await fixture(12000);config.sources.domestic=[];
+ config.timeouts={firstByteMs:500,idleMs:500,totalMs:1000};
+ let pagesRequests=0,mirrorRequests=0;
+ const result=await settlesWithin(loadModelBlob(config,{baseURL,cacheStorage:null,fetcher:fetchFn(url=>{
+  if(url.includes('backup')){mirrorRequests++;return new Promise<Response>(()=>{})}
+  pagesRequests++;if(pagesRequests===1)throw new TypeError('Load failed');return response(bytes);
+ })}),200);
+ assert.equal(result.source,'GitHub Pages');assert.equal(result.blob.size,12000);
+ assert.equal(pagesRequests,2);assert.equal(mirrorRequests,1);
+});
+
+test('a persistent Pages connection failure has only one retry and reports the mirror actually still pending',async()=>{
+ const {config}=await fixture();config.sources.domestic=[];
+ config.timeouts={firstByteMs:80,idleMs:80,totalMs:200};
+ const progress:ModelProgress[]= [];let pagesRequests=0,mirrorRequests=0;
+ await assert.rejects(settlesWithin(loadModelBlob(config,{baseURL,cacheStorage:null,onProgress:p=>progress.push(p),fetcher:fetchFn(url=>{
+  if(url.includes('backup')){mirrorRequests++;return new Promise<Response>(()=>{})}
+  pagesRequests++;throw new TypeError('Load failed');
+ })})),{code:'all-sources-failed'});
+ assert.equal(pagesRequests,2);assert.equal(mirrorRequests,1);
+ const waiting=progress.find(p=>p.phase==='switching');
+ assert.equal(waiting?.source,'备用镜像 1');
+ assert(waiting?.message.includes('GitHub Pages'));
+ assert(waiting?.message.includes('备用镜像 1'));
+});
+
+test('HTTP rejection is final and never retries a mirror or consumes another quota reservation',async()=>{
+ const {config}=await fixture();config.sources.domestic=[];
+ const calls:string[]=[];
+ await assert.rejects(loadModelBlob(config,{baseURL,cacheStorage:null,fetcher:fetchFn(url=>{
+  calls.push(url);return new Response(null,{status:url.includes('backup')?429:503});
+ })}),{code:'all-sources-failed'});
+ assert.deepEqual(calls,['https://backup.test/dorm.glb',baseURL+'assets/repaired.glb']);
+});
+
+test('leaving during a Pages reconnection delay cancels the retry before another GET',async()=>{
+ const {config}=await fixture();config.sources.domestic=[];
+ config.timeouts={firstByteMs:200,idleMs:200,totalMs:400};
+ const controller=new AbortController();let pagesRequests=0;
+ const operation=loadModelBlob(config,{baseURL,signal:controller.signal,cacheStorage:null,fetcher:fetchFn(url=>{
+  if(url.includes('backup'))return new Promise<Response>(()=>{});
+  pagesRequests++;setTimeout(()=>controller.abort(),2);throw new TypeError('Load failed');
+ })});
+ await assert.rejects(settlesWithin(operation),{name:'AbortError'});
+ await new Promise(resolve=>setTimeout(resolve,40));assert.equal(pagesRequests,1);
+});

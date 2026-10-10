@@ -104,7 +104,7 @@ function readableFailure(error: unknown) {
 
 // Each source reads only a small prefix until selected. Keep its original stream
 // available as a fallback; never make a second (quota-consuming) GET to resume it.
-function probeSource(url: string, config: ModelConfig, options: Options) {
+function probeSource(url: string, config: ModelConfig, options: Options, retryConnection = false) {
   const controller = new AbortController();
   let reason: unknown;
   let rejectStopped!: (error: unknown) => void;
@@ -116,8 +116,9 @@ function probeSource(url: string, config: ModelConfig, options: Options) {
   const chunks: ArrayBuffer[] = [];
   const received: number[] = [];
   let loaded = 0, headerChecked = false;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
   const cleanup = () => {
-    clearTimeout(idleTimer); clearTimeout(totalTimer);
+    clearTimeout(idleTimer); clearTimeout(totalTimer); clearTimeout(retryTimer);
     if (closed) return;
     closed = true;
     options.signal?.removeEventListener('abort', cancel);
@@ -175,17 +176,31 @@ function probeSource(url: string, config: ModelConfig, options: Options) {
   const ready = (async () => {
     try {
       check();
-      const request = (options.fetcher ?? fetch)(url, {
-        signal: controller.signal, mode:'cors', credentials:'omit', cache:'no-store',
-      }).then(response => {
-        // Also clean up a response arriving after the independent race ended.
-        if (closed || controller.signal.aborted || response.status !== 200) {
-          try {void response.body?.cancel().catch(() => {});} catch { /* Closed body. */ }
+      const request = (async () => {
+        for (let attempt = 0; ; attempt++) {
           check();
-          throw new ModelDownloadError('http', `HTTP ${response.status}`);
+          try {
+            const response = await (options.fetcher ?? fetch)(url, {
+              signal:controller.signal, mode:'cors', credentials:'omit', cache:'no-store',
+            });
+            // Also clean up a response arriving after the independent race ended.
+            if (closed || controller.signal.aborted || response.status !== 200) {
+              try {void response.body?.cancel().catch(() => {});} catch { /* Closed body. */ }
+              check();
+              throw new ModelDownloadError('http', `HTTP ${response.status}`);
+            }
+            return response;
+          } catch (error) {
+            check();
+            // Only Pages may reconnect once after a failed connection. Mirror
+            // GETs reserve quota, so never retry them or explicit HTTP failures.
+            if (!retryConnection || attempt > 0 || !(error instanceof TypeError)) throw error;
+            await Promise.race([new Promise<void>(resolve => {
+              retryTimer = setTimeout(resolve, Math.min(1000, config.timeouts.firstByteMs / 10));
+            }), stopped]);
+          }
         }
-        return response;
-      });
+      })();
       const response = await Promise.race([request, stopped]); check();
       if (!response.body) throw new ModelDownloadError('stream', '浏览器未提供可读取的模型数据流');
       reader = response.body.getReader();
@@ -250,7 +265,7 @@ export async function loadModelBlob(config: ModelConfig, options: Options) {
   try {
     for (const [index, source] of sources.entries()) {
       throwIfAborted(options.signal);
-      const transfer = probeSource(source.url, config, options); transfers.push(transfer);
+      const transfer = probeSource(source.url, config, options, index === sources.length - 1); transfers.push(transfer);
       pending.set(index, transfer.ready.then(() => ({index, ok:true}), error => ({index, error, ok:false})));
     }
     while (pending.size) {
@@ -267,7 +282,11 @@ export async function loadModelBlob(config: ModelConfig, options: Options) {
         throwIfAborted(options.signal);
         const reason = readableFailure(error);
         failures.push(`${source.label}：${reason}`);
-        if (pending.size) emit('switching', `${source.label}：${reason}，正在选择可用源…`, 0, source.label, i+1);
+        if (pending.size) {
+          const remaining = [...pending.keys()];
+          const next = remaining[0];
+          emit('switching', `${source.label}：${reason}；正在尝试${remaining.map(index => sources[index].label).join('、')}…`, 0, sources[next].label, next+1);
+        }
         continue;
       }
       // Cancel pending/no-data requests without waiting for their cancellation.
